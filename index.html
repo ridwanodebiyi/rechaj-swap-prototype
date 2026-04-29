@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rechaj — Optimised Swap Flow Prototype</title>
+<style>
+/* ══════════════════════════════════════
+   RECHAJ DESIGN TOKENS (from Figma)
+══════════════════════════════════════ */
+:root {
+  /* Greens */
+  --g-primary: #00d964;
+  --g-dark:    #05853e;
+  --g-9:       #01e46f;
+  --g-8:       #42c16c;
+  --g-3:       #dcfbe2;
+  --g-2:       #f4fbf5;
+  --g-green3:  #E3FADC;
+  --g-green11: #3F8122;
+  /* Greys */
+  --grey12: #202020;
+  --grey11: #646464;
+  --grey10: #838383;
+  --grey9:  #8d8d8d;
+  --grey7:  #cecece;
+  --grey6:  #d9d9d9;
+  --grey5:  #e0e0e0;
+  --grey4:  #e8e8e8;
+  --grey3:  #f0f0f0;
+  --grey2:  #f9f9f9;
+  --grey1:  #fcfcfc;
+  /* Neutrals */
+  --white:  #FFFFFF;
+  --bg:     #F5F5F5;
+  --text-main: #0E0400;
+  /* Amber */
+  --amber2:  #fefbe9;
+  --amber3:  #fff7c2;
+  --amber10: #ffba18;
+  --amber11: #ab6400;
+  /* Red */
+  --red9: #e32627;
+  --red2: #fff7f6;
+  /* Blue */
+  --blue2: #f4faff;
+  --blue9: #0090ff;
+  /* Shadows */
+  --sh-xs:   0 1px 2px rgba(16,24,40,0.05);
+  --sh-sm:   0 1px 3px rgba(16,24,40,0.1), 0 1px 2px rgba(16,24,40,0.06);
+  --sh-card: 2.08px 2.78px 16px 0px rgba(193,197,210,0.03);
+  --sh-fab:  0 6px 24px rgba(0,217,100,0.45);
+  --sh-sheet: 0 -8px 40px rgba(0,0,0,0.12);
+}
+
+/* ══════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  background: #0e0e0e;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 24px 20px 40px;
+  gap: 0;
+}
+
+/* ══════════════════════════════════════
+   OUTER WRAPPER
+══════════════════════════════════════ */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.proto-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+
+/* Tap progress bar */
+.tap-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tap-pip {
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.15);
+  transition: background 0.4s, width 0.4s;
+  width: 28px;
+}
+.tap-pip.done   { background: var(--g-dark);    }
+.tap-pip.active { background: var(--g-primary); width: 44px; }
+
+/* ══════════════════════════════════════
+   VCU FLOW SWITCHER
+══════════════════════════════════════ */
+.vcu-switcher {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  padding: 3px;
+  gap: 2px;
+}
+.vcu-btn {
+  padding: 6px 18px;
+  border-radius: 99px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.vcu-btn.active {
+  background: var(--white);
+  color: var(--grey12);
+}
+
+/* Mileage manual input row (old VCU) */
+.mileage-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mileage-field {
+  width: 72px;
+  padding: 4px 8px;
+  border: 1.5px solid var(--grey5);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--grey12);
+  font-family: inherit;
+  text-align: right;
+  outline: none;
+  background: var(--white);
+  transition: border-color 0.18s;
+  -moz-appearance: textfield;
+}
+.mileage-field::-webkit-inner-spin-button,
+.mileage-field::-webkit-outer-spin-button { -webkit-appearance: none; }
+.mileage-field:focus { border-color: var(--g-primary); }
+.mileage-field.filled { border-color: var(--grey4); }
+
+
+/* ══════════════════════════════════════
+   PHONE SHELL
+══════════════════════════════════════ */
+.phone {
+  width: 390px;
+  height: 844px;
+  background: var(--bg);
+  border-radius: 52px;
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0 0 0 1px #1a1a1a,
+    0 0 0 3px #2a2a2a,
+    0 0 0 7px #111,
+    0 50px 130px rgba(0,0,0,0.7),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════
+   SCREEN BASE
+══════════════════════════════════════ */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+.screen.active { display: flex; }
+
+/* ══════════════════════════════════════
+   STATUS BAR
+══════════════════════════════════════ */
+.sb {
+  height: 44px;
+  padding: 14px 26px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sb-time {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--grey12);
+}
+.sb-icons { display: flex; align-items: center; gap: 5px; }
+.sb-icons svg { display: block; }
+
+/* ══════════════════════════════════════
+   SCREEN 1 — DASHBOARD
+══════════════════════════════════════ */
+#s-dash { background: var(--bg); }
+
+.dash-header {
+  padding: 6px 20px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.dh-left { display: flex; align-items: center; gap: 10px; }
+.dh-av {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, #081f12, #0d3a20);
+  border: 2.5px solid var(--g-9);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: white; flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+.dh-name { font-size: 16px; font-weight: 700; color: var(--grey12); line-height: 1.2; }
+.dh-date { font-size: 11.5px; color: var(--grey10); margin-top: 1px; }
+.notif-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--white); border: 1px solid var(--grey4);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--sh-sm); cursor: pointer; flex-shrink: 0;
+}
+
+/* scroll body */
+.dash-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 20px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dash-body::-webkit-scrollbar { display: none; }
+
+/* Wallet card */
+.wallet-card {
+  border-radius: 16px;
+  background: #0f1d0f;
+  padding: 16px 16px 18px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 2.08px 2.78px 16px 0.69px rgba(193,197,210,0.03);
+}
+.wc-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wc-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--g-3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.wc-text { display: flex; flex-direction: column; gap: 2px; }
+.wc-label { font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.5); letter-spacing: 0; }
+.wc-amount { font-size: 22px; font-weight: 800; color: var(--grey6); letter-spacing: -0.5px; line-height: 1.3; }
+.wc-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 14px; font-weight: 500;
+  color: rgba(255,255,255,0.95);
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+}
+
+/* Stats row */
+.stats-row {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--sh-card);
+  flex-shrink: 0;
+}
+.stats-ic {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--g-3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.stats-val { font-size: 24px; font-weight: 800; color: var(--grey12); letter-spacing: -0.5px; line-height: 1; }
+.stats-lbl { font-size: 12px; color: var(--grey10); margin-top: 2px; }
+
+/* Section heading */
+.sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sec-title { font-size: 15px; font-weight: 700; color: var(--grey12); }
+.sec-link  { font-size: 13px; font-weight: 600; color: var(--g-dark); cursor: pointer; }
+
+/* Quick actions grid */
+.qa-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.qa-item {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 15px 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--sh-card);
+  cursor: pointer;
+}
+.qa-ic {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.qa-lbl { font-size: 14px; font-weight: 500; color: var(--grey12); line-height: 1.4; }
+
+/* Swap list */
+.swap-list { display: flex; flex-direction: column; gap: 8px; }
+.swap-item {
+  background: var(--white);
+  border-radius: 16px;
+  height: 70px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--sh-card);
+}
+.sw-left { display: flex; align-items: center; gap: 14px; }
+.sw-av {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--g-3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--g-dark);
+  flex-shrink: 0;
+}
+.sw-info { display: flex; flex-direction: column; gap: 4px; }
+.sw-nm   { font-size: 14px; font-weight: 500; color: var(--grey12); }
+.sw-pl   { font-size: 12px; color: var(--grey11); line-height: 18px; }
+.sw-right { text-align: right; display: flex; flex-direction: column; gap: 4px; }
+.sw-ph   { font-size: 12px; color: var(--grey11); }
+.sw-tm   { font-size: 12px; color: var(--grey11); }
+
+/* Bottom navigation */
+.bot-nav {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 82px;
+  background: var(--white);
+  border-top: 1px solid var(--grey4);
+  display: flex;
+  padding: 10px 4px 0;
+  z-index: 10;
+}
+.bn-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--grey10);
+  cursor: pointer;
+}
+.bn-item.active { color: var(--g-dark); }
+
+/* FAB — Tap 1 */
+.fab-btn {
+  position: absolute;
+  right: 20px; bottom: 92px;
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: var(--g-primary);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--sh-fab);
+  cursor: pointer;
+  z-index: 20;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fab-btn:active { transform: scale(0.92); box-shadow: 0 3px 12px rgba(0,217,100,0.35); }
+
+/* ══════════════════════════════════════
+   BOTTOM SHEET PATTERN (screens 2 & 3)
+══════════════════════════════════════ */
+.modal-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1;
+}
+
+.sheet-wrap {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 2;
+}
+
+.sheet {
+  background: var(--white);
+  border-radius: 28px 28px 0 0;
+  overflow: hidden;
+  box-shadow: var(--sh-sheet);
+  animation: sheetSlideUp 0.38s cubic-bezier(0.32, 1.25, 0.6, 1) both;
+}
+
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.sh-pill {
+  width: 44px; height: 4px;
+  background: var(--grey5);
+  border-radius: 99px;
+  margin: 14px auto 0;
+}
+
+.sh-head {
+  padding: 14px 20px 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--grey4);
+}
+.sh-icon-wrap {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: var(--g-2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sh-title { font-size: 18px; font-weight: 700; color: var(--grey12); }
+
+/* ══════════════════════════════════════
+   SCREEN 2 — SCANNER (QR default state)
+══════════════════════════════════════ */
+.dash-ghost {
+  position: absolute;
+  inset: 0; z-index: 0;
+  overflow: hidden;
+}
+.ghost-wallet {
+  margin: 44px 20px 0;
+  height: 120px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #081910, #0a2e1c);
+  opacity: 0.7;
+}
+
+/* QR Camera area */
+.qr-viewport {
+  margin: 16px 20px;
+  border-radius: 20px;
+  background: #080808;
+  aspect-ratio: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.qr-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.qr-corners {
+  position: absolute;
+  inset: 28px;
+  pointer-events: none;
+}
+.qr-corner {
+  position: absolute;
+  width: 30px; height: 30px;
+}
+.qr-corner::before, .qr-corner::after {
+  content: '';
+  position: absolute;
+  background: var(--g-primary);
+  border-radius: 3px;
+}
+.qr-corner.tl { top: 0; left: 0; }
+.qr-corner.tl::before { width: 3px; height: 30px; top: 0; left: 0; }
+.qr-corner.tl::after  { width: 30px; height: 3px; top: 0; left: 0; }
+.qr-corner.tr { top: 0; right: 0; }
+.qr-corner.tr::before { width: 3px; height: 30px; top: 0; right: 0; }
+.qr-corner.tr::after  { width: 30px; height: 3px; top: 0; right: 0; }
+.qr-corner.bl { bottom: 0; left: 0; }
+.qr-corner.bl::before { width: 3px; height: 30px; bottom: 0; left: 0; }
+.qr-corner.bl::after  { width: 30px; height: 3px; bottom: 0; left: 0; }
+.qr-corner.br { bottom: 0; right: 0; }
+.qr-corner.br::before { width: 3px; height: 30px; bottom: 0; right: 0; }
+.qr-corner.br::after  { width: 30px; height: 3px; bottom: 0; right: 0; }
+
+/* Scanning line */
+.scan-beam {
+  position: absolute;
+  left: 28px; right: 28px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--g-primary) 30%, rgba(0,217,100,0.9) 50%, var(--g-primary) 70%, transparent 100%);
+  box-shadow: 0 0 10px rgba(0,217,100,0.6), 0 0 20px rgba(0,217,100,0.2);
+  animation: beamScan 2.2s ease-in-out infinite;
+}
+@keyframes beamScan {
+  0%   { top: 28px; }
+  50%  { top: calc(100% - 28px); }
+  100% { top: 28px; }
+}
+
+/* Center QR placeholder */
+.qr-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.qr-grid {
+  display: grid;
+  grid-template-columns: repeat(5,12px);
+  grid-template-rows: repeat(5,12px);
+  gap: 3px;
+  opacity: 0.15;
+}
+.qr-cell { border-radius: 2px; background: rgba(255,255,255,0.7); }
+.qr-cell.dark { background: transparent; }
+
+.qr-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 28px 20px 18px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.75));
+  text-align: center;
+}
+.qr-label-main { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.95); }
+.qr-label-sub  { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+
+.manual-fallback {
+  text-align: center;
+  padding: 8px 20px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* ══════════════════════════════════════
+   SCREEN 3 — SCANNED (inline payment)
+══════════════════════════════════════ */
+.scanned-body {
+  overflow-y: auto;
+  max-height: 74vh;
+  padding-bottom: 4px;
+}
+.scanned-body::-webkit-scrollbar { display: none; }
+
+/* QR verified pill */
+.verified-pill {
+  margin: 14px 20px 0;
+  background: var(--g-2);
+  border: 1px solid var(--g-3);
+  border-radius: 99px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-dark);
+}
+
+/* Rider card */
+.rider-card {
+  margin: 0;
+  border-radius: 16px;
+  border: 1px solid var(--grey4);
+  overflow: hidden;
+  background: var(--white);
+}
+/* Inside the initiate swap sheet, match the 20px side margins of all other elements */
+.scanned-body .rider-card {
+  margin: 12px 20px 0;
+}
+.rc-head {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--grey4);
+}
+.rc-av {
+  width: 50px; height: 50px; border-radius: 50%;
+  background: linear-gradient(135deg, #081f12, #0d3a20);
+  border: 2.5px solid var(--g-3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 800; color: white;
+  flex-shrink: 0;
+}
+.rc-name { font-size: 16px; font-weight: 700; color: var(--grey12); }
+.rc-sub  { font-size: 12px; color: var(--grey10); margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+
+/* Inline payment */
+.pay-inline {
+  background: var(--g-2);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--grey4);
+  gap: 4px;
+}
+.pay-block { flex: 1; text-align: center; }
+.pay-lbl   { font-size: 11px; font-weight: 500; color: var(--grey10); margin-bottom: 3px; }
+.pay-amt   { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; }
+.pay-amt.wallet { color: var(--g-dark); }
+.pay-amt.fee    { color: var(--red9); }
+.pay-amt.result { color: var(--grey12); }
+.pay-arrow {
+  width: 22px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--grey7);
+}
+
+/* Balance surplus line */
+.balance-surplus {
+  background: var(--g-2);
+  border-bottom: 1px solid var(--grey4);
+  padding: 6px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--g-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* Detail rows */
+.detail-rows { padding: 0 16px; }
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--grey4);
+}
+.detail-row:last-child { border-bottom: none; }
+.dr-label { color: var(--grey10); }
+.dr-value { font-weight: 600; color: var(--grey12); }
+
+/* Promo banner */
+.promo-bar {
+  margin: 10px 20px 0;
+  background: var(--amber3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.promo-left  { font-size: 12px; font-weight: 600; color: var(--amber11); display: flex; align-items: center; gap: 7px; }
+.promo-right { font-size: 12px; color: var(--amber11); }
+.promo-right b { font-weight: 700; }
+
+/* Transaction history link */
+.txn-link {
+  margin: 10px 20px 0;
+  background: var(--g-2);
+  border: 1px solid var(--g-3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-dark);
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════
+   SHARED SHEET ACTIONS
+══════════════════════════════════════ */
+.sh-actions {
+  padding: 14px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--white);
+}
+
+/* ★ PRIMARY BUTTON — text is grey12 not white ★ */
+.btn-primary {
+  width: 100%;
+  background: var(--g-primary);
+  color: var(--grey12);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 15px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  letter-spacing: -0.2px;
+  transition: transform 0.1s, opacity 0.15s;
+  display: block;
+}
+.btn-primary:disabled {
+  background: var(--grey4);
+  color: var(--grey9);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.7;
+}
+.btn-primary:not(:disabled):active { transform: scale(0.98); opacity: 0.9; }
+
+.btn-secondary {
+  width: 100%;
+  background: transparent;
+  color: var(--grey12);
+  font-size: 16px;
+  font-weight: 600;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--grey6);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+
+/* ══════════════════════════════════════
+   SCREEN 4, 4b, 4c — COMPLETE SWAP FLOW
+   Shared structure elements
+══════════════════════════════════════ */
+.page-header {
+  background: var(--white);
+  height: 56px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--grey4);
+  flex-shrink: 0;
+}
+.back-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--grey3);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.page-title { font-size: 18px; font-weight: 700; color: var(--grey12); }
+
+/* Rider badge chip */
+.rider-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px 4px;
+  flex-shrink: 0;
+}
+.rider-chip {
+  background: var(--white);
+  border: 1px solid var(--grey4);
+  border-radius: 99px;
+  padding: 6px 14px 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--sh-sm);
+}
+.chip-av {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--g-3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--g-dark);
+}
+.chip-name { font-size: 13px; font-weight: 600; color: var(--grey12); }
+
+/* Scroll area */
+.c-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.c-scroll::-webkit-scrollbar { display: none; }
+
+/* Fixed bottom CTA bar */
+.cta-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--white);
+  border-top: 1px solid var(--grey4);
+  padding: 12px 16px 30px;
+}
+
+/* ══════════════════════════════════════
+   READ-ONLY INFO CARD (top of s-complete)
+   Mirrors rider detail-rows pattern
+══════════════════════════════════════ */
+.info-card {
+  background: var(--white);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--sh-card);
+  flex-shrink: 0;
+}
+.info-card-head {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--grey4);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--grey11);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--grey4);
+}
+.info-row:last-child { border-bottom: none; }
+.ir-label { color: var(--grey10); }
+.ir-value { font-weight: 600; color: var(--grey12); letter-spacing: 0.3px; }
+.vcu-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--g-2);
+  border: 1px solid var(--g-3);
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--g-dark);
+  margin-left: 7px;
+}
+
+/* Keke illustration wrapper (s-complete) */
+.keke-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 6px;
+  flex-shrink: 0;
+}
+.keke-locked-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--amber11);
+  background: var(--amber3);
+  padding: 6px 14px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ══════════════════════════════════════
+   SCREEN 4b — SCAN NEW BATTERY
+══════════════════════════════════════ */
+#s-scan-new { background: var(--bg); }
+
+.scan-new-top {
+  background: var(--white);
+  flex-shrink: 0;
+}
+.scan-context-strip {
+  background: var(--g-2);
+  border-bottom: 1px solid var(--g-3);
+  padding: 9px 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--g-dark);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Full-height camera area */
+.full-camera {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: #080808;
+}
+.full-camera::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* Bigger scan brackets for full-screen */
+.full-camera .qr-corners {
+  inset: 60px;
+}
+.full-camera .scan-beam {
+  left: 60px; right: 60px;
+}
+
+.full-camera-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 60px 24px 36px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.82));
+  text-align: center;
+  pointer-events: none;
+}
+.fcl-main { font-size: 16px; font-weight: 700; color: rgba(255,255,255,0.95); }
+.fcl-sub  { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 5px; }
+
+/* ══════════════════════════════════════
+   SCREEN 4c — COMPLETE READY (populated)
+══════════════════════════════════════ */
+.summary-card {
+  background: var(--white);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--sh-card);
+  flex-shrink: 0;
+}
+.summary-head {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--grey4);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--grey12);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--grey4);
+  font-size: 13.5px;
+}
+.summary-row:last-child { border-bottom: none; }
+.sr-label { color: var(--grey10); }
+.sr-val-wrap { display: flex; align-items: center; gap: 7px; }
+.sr-value { font-weight: 600; color: var(--grey12); letter-spacing: 0.3px; }
+.sr-check {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--g-primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════
+   SCREEN 5 — SWAP SUCCESSFUL
+══════════════════════════════════════ */
+#s-success { background: transparent; }
+
+.success-dimmed {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 0;
+}
+
+.success-sheet-wrap {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 1;
+}
+.success-sheet {
+  background: var(--white);
+  border-radius: 28px 28px 0 0;
+  padding: 16px 24px 38px;
+  animation: sheetSlideUp 0.4s cubic-bezier(0.32, 1.25, 0.6, 1) both;
+}
+
+.success-check {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  background: var(--g-primary);
+  margin: 10px auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  animation: popBounce 0.55s 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  box-shadow: 0 8px 28px rgba(0,217,100,0.4);
+}
+@keyframes popBounce {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.success-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--grey12);
+  text-align: center;
+  letter-spacing: -0.4px;
+  margin-bottom: 10px;
+}
+.success-desc {
+  font-size: 14px;
+  color: var(--grey10);
+  text-align: center;
+  line-height: 1.65;
+  margin-bottom: 26px;
+  padding: 0 4px;
+}
+
+/* ══════════════════════════════════════
+   TOAST — Design System "Success" alert, LIGHT mode
+   bg white, border grey4, badge green on g-3, text grey12
+══════════════════════════════════════ */
+.toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-18px);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  background: var(--white);
+  border: 1px solid var(--grey4);
+  border-radius: 16px;
+  padding: 4px 12px 4px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 300;
+  opacity: 0;
+  transition: opacity 0.26s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast-badge {
+  background: var(--g-3);
+  color: var(--g-dark);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.toast-msg {
+  color: var(--grey12);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* ══════════════════════════════════════
+   HINT BAR (below phone)
+══════════════════════════════════════ */
+.hint-bar {
+  max-width: 390px;
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+  line-height: 1.5;
+}
+.hint-green { color: var(--g-primary); font-weight: 700; }
+
+/* ══════════════════════════════════════
+   SCREEN TRANSITION
+══════════════════════════════════════ */
+.screen-enter {
+  animation: screenEnter 0.3s ease-out;
+}
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="proto-label">Rechaj · Optimised Swap Flow Prototype · April 2026</div>
+
+  <!-- Tap progress indicator — 6 steps -->
+  <div class="tap-track">
+    <div class="tap-pip active" id="pip1"></div>
+    <div class="tap-pip"        id="pip2"></div>
+    <div class="tap-pip"        id="pip3"></div>
+    <div class="tap-pip"        id="pip4"></div>
+    <div class="tap-pip"        id="pip5"></div>
+    <div class="tap-pip"        id="pip6"></div>
+  </div>
+
+  <!-- VCU flow switcher -->
+  <div class="vcu-switcher">
+    <button class="vcu-btn active" id="btn-new-vcu" onclick="setVCUMode('new')">⚡ New VCU</button>
+    <button class="vcu-btn"        id="btn-old-vcu" onclick="setVCUMode('old')">Old VCU</button>
+  </div>
+
+  <!-- ╔══════════════════════════════╗
+       ║         PHONE FRAME          ║
+       ╚══════════════════════════════╝ -->
+  <div class="phone">
+
+    <!-- ─────────────────────────────────
+         TOAST OVERLAY (shared, lives at phone root)
+    ───────────────────────────────── -->
+    <div class="toast" id="toast">
+      <div class="toast-badge">Success</div>
+      <div class="toast-msg" id="toast-msg">Battery compartment unlocked</div>
+    </div>
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 1 — DASHBOARD
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen active" id="s-dash">
+
+      <div class="sb">
+        <span class="sb-time">9:41</span>
+        <div class="sb-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none">
+            <rect x="0"    y="5"  width="3" height="6"  rx="1" fill="#202020"/>
+            <rect x="4.5"  y="3"  width="3" height="8"  rx="1" fill="#202020"/>
+            <rect x="9"    y="1"  width="3" height="10" rx="1" fill="#202020"/>
+            <rect x="13.5" y="0"  width="3" height="11" rx="1" fill="#202020" opacity="0.35"/>
+          </svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+            <path d="M8 9.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#202020"/>
+            <path d="M4.6 6.9a4.8 4.8 0 0 1 6.8 0" stroke="#202020" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <path d="M1.5 3.8a8.5 8.5 0 0 1 13 0" stroke="#202020" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          </svg>
+          <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
+            <rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#202020" stroke-opacity="0.35"/>
+            <rect x="2" y="2" width="17" height="8" rx="2" fill="#202020"/>
+            <path d="M23 4v4a2 2 0 0 0 0-4z" fill="#202020" opacity="0.4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="dash-header">
+        <div class="dh-left">
+          <div class="dh-av">D</div>
+          <div>
+            <div class="dh-name">Daniel</div>
+            <div class="dh-date">Fri Jun 23, 2023</div>
+          </div>
+        </div>
+        <div class="notif-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="2" stroke-linecap="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="dash-body">
+
+        <!-- Wallet card -->
+        <div class="wallet-card">
+          <div class="wc-header">
+            <div class="wc-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+                <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+              </svg>
+            </div>
+            <div class="wc-text">
+              <div class="wc-label">Wallet balance</div>
+              <div class="wc-amount">₦150,000.00</div>
+            </div>
+          </div>
+          <button class="wc-btn">Top up wallet</button>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+          <div class="stats-ic">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#05853e"/>
+            </svg>
+          </div>
+          <div>
+            <div class="stats-val">32</div>
+            <div class="stats-lbl">Total swaps completed today</div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="sec-head">
+          <div class="sec-title">Quick actions</div>
+        </div>
+        <div class="qa-grid">
+          <!-- Transfer request — green -->
+          <div class="qa-item">
+            <div class="qa-ic" style="background:#f4fbf5;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </div>
+            <div class="qa-lbl">Transfer request</div>
+          </div>
+          <!-- Update battery status — amber -->
+          <div class="qa-item">
+            <div class="qa-ic" style="background:#fefbe9;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ab6400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M13 8l-4 5h4l-1 3 4-5h-4l1-3z" fill="#ab6400" stroke="none"/>
+              </svg>
+            </div>
+            <div class="qa-lbl">Update battery status</div>
+          </div>
+          <!-- Push battery — blue -->
+          <div class="qa-item">
+            <div class="qa-ic" style="background:#f4faff;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0090ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13" rx="2"/>
+                <path d="M16 8h4l3 3v5h-7V8z"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+            </div>
+            <div class="qa-lbl">Push battery</div>
+          </div>
+          <!-- Swap faulty battery — red -->
+          <div class="qa-item">
+            <div class="qa-ic" style="background:#fff7f6;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e32627" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 1l4 4-4 4"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <path d="M7 23l-4-4 4-4"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+            </div>
+            <div class="qa-lbl">Swap faulty battery</div>
+          </div>
+        </div>
+
+        <!-- Swap history -->
+        <div class="sec-head">
+          <div class="sec-title">Swap history</div>
+          <div class="sec-link">View all</div>
+        </div>
+        <div class="swap-list">
+          <div class="swap-item">
+            <div class="sw-left">
+              <div class="sw-av">WS</div>
+              <div class="sw-info">
+                <div class="sw-nm">Werinipre Suoyo</div>
+                <div class="sw-pl">BTR-2023-007</div>
+              </div>
+            </div>
+            <div class="sw-right">
+              <div class="sw-ph">09112858575</div>
+              <div class="sw-tm">04:05PM, 12th Dec 2024</div>
+            </div>
+          </div>
+          <div class="swap-item">
+            <div class="sw-left">
+              <div class="sw-av">AB</div>
+              <div class="sw-info">
+                <div class="sw-nm">Amara Blessing</div>
+                <div class="sw-pl">BTR-2023-004</div>
+              </div>
+            </div>
+            <div class="sw-right">
+              <div class="sw-ph">09023148821</div>
+              <div class="sw-tm">04:05PM, 12th Dec 2024</div>
+            </div>
+          </div>
+          <div class="swap-item">
+            <div class="sw-left">
+              <div class="sw-av">IN</div>
+              <div class="sw-info">
+                <div class="sw-nm">Ifeyinwa Nneoma</div>
+                <div class="sw-pl">BTR-2023-002</div>
+              </div>
+            </div>
+            <div class="sw-right">
+              <div class="sw-ph">07098765432</div>
+              <div class="sw-tm">02:10PM, 12th Dec 2024</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bot-nav">
+        <div class="bn-item active">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </div>
+        <div class="bn-item">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          Batteries
+        </div>
+        <div class="bn-item">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          Wallet
+        </div>
+        <div class="bn-item">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          Activities
+        </div>
+        <div class="bn-item">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </div>
+      </div>
+
+      <!-- FAB — TAP 1 -->
+      <button class="fab-btn" onclick="goTo('s-scanner', 1)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7h14m0 0l-3.5-3.5M17 7l-3.5 3.5"/>
+          <path d="M21 17H7m0 0l3.5-3.5M7 17l3.5 3.5"/>
+        </svg>
+      </button>
+    </div>
+    <!-- /SCREEN 1 -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 2 — QR SCANNER
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-scanner">
+
+      <div class="dash-ghost">
+        <div style="height:44px;"></div>
+        <div class="ghost-wallet"></div>
+      </div>
+      <div class="modal-bg"></div>
+
+      <div class="sheet-wrap">
+        <div class="sheet">
+          <div class="sh-pill"></div>
+          <div class="sh-head">
+            <div class="sh-icon-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2" stroke-linecap="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                <rect x="8" y="8" width="8" height="8" rx="1"/>
+              </svg>
+            </div>
+            <span class="sh-title">Initiate swap</span>
+          </div>
+
+          <!-- QR camera viewport — TAP 2 -->
+          <div class="qr-viewport" onclick="goTo('s-scanned', 2)">
+            <div class="qr-corners">
+              <div class="qr-corner tl"></div>
+              <div class="qr-corner tr"></div>
+              <div class="qr-corner bl"></div>
+              <div class="qr-corner br"></div>
+            </div>
+            <div class="scan-beam"></div>
+            <div class="qr-placeholder">
+              <svg width="80" height="80" viewBox="0 0 80 80" fill="none" opacity="0.08">
+                <rect x="5" y="5" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="13" y="13" width="12" height="12" rx="1" fill="white"/>
+                <rect x="47" y="5" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="55" y="13" width="12" height="12" rx="1" fill="white"/>
+                <rect x="5" y="47" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="13" y="55" width="12" height="12" rx="1" fill="white"/>
+                <line x1="47" y1="47" x2="47" y2="75" stroke="white" stroke-width="3"/>
+                <line x1="75" y1="47" x2="75" y2="75" stroke="white" stroke-width="3"/>
+                <line x1="47" y1="47" x2="75" y2="47" stroke="white" stroke-width="3"/>
+                <rect x="57" y="57" width="8" height="8" rx="1" fill="white"/>
+                <rect x="47" y="67" width="8" height="8" rx="1" fill="white"/>
+                <rect x="67" y="67" width="8" height="8" rx="1" fill="white"/>
+              </svg>
+            </div>
+            <div class="qr-label">
+              <div class="qr-label-main">Point camera at rider's QR code</div>
+              <div class="qr-label-sub">Tap to simulate scan</div>
+            </div>
+          </div>
+
+          <div class="manual-fallback">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            Or enter details manually
+          </div>
+
+          <div class="sh-actions" style="padding-top:8px;">
+            <div class="btn-secondary" onclick="goTo('s-dash', 0)">Close</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /SCREEN 2 -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 3 — SCANNED (inline rider + payment)
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-scanned">
+
+      <div class="dash-ghost">
+        <div style="height:44px;"></div>
+        <div class="ghost-wallet"></div>
+      </div>
+      <div class="modal-bg"></div>
+
+      <div class="sheet-wrap">
+        <div class="sheet">
+          <div class="sh-pill"></div>
+          <div class="sh-head">
+            <div class="sh-icon-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2" stroke-linecap="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                <rect x="8" y="8" width="8" height="8" rx="1"/>
+              </svg>
+            </div>
+            <span class="sh-title">Initiate swap</span>
+          </div>
+
+          <div class="scanned-body">
+
+            <div class="verified-pill">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              QR code verified — Rider identified
+            </div>
+
+            <div class="rider-card">
+              <div class="rc-head">
+                <div class="rc-av">WS</div>
+                <div>
+                  <div class="rc-name">Werinipre Suoyo</div>
+                  <div class="rc-sub">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#838383" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h3M11 12h7"/></svg>
+                    FST234HJ · Active rider
+                  </div>
+                </div>
+              </div>
+
+              <!-- ★ INLINE PAYMENT ★ -->
+              <div class="pay-inline">
+                <div class="pay-block">
+                  <div class="pay-lbl">Rider's wallet</div>
+                  <div class="pay-amt wallet">₦17,500</div>
+                </div>
+                <div class="pay-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="pay-block">
+                  <div class="pay-lbl">Swap fee</div>
+                  <div class="pay-amt fee">−₦1,200</div>
+                </div>
+                <div class="pay-arrow">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="pay-block">
+                  <div class="pay-lbl">After swap</div>
+                  <div class="pay-amt result">₦16,300</div>
+                </div>
+              </div>
+
+              <div class="balance-surplus">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Sufficient balance — swap fee covered
+              </div>
+
+              <div class="detail-rows">
+                <div class="detail-row">
+                  <span class="dr-label">Phone number</span>
+                  <span class="dr-value">08042049165</span>
+                </div>
+                <div class="detail-row">
+                  <span class="dr-label">License plate</span>
+                  <span class="dr-value">FST234HJ</span>
+                </div>
+                <div class="detail-row">
+                  <span class="dr-label">Last swap</span>
+                  <span class="dr-value">11:34AM, Jun 12th 2025</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="txn-link">
+              View rider's wallet transaction history
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
+
+            <div style="height:14px;"></div>
+          </div>
+
+          <!-- TAP 3 — Proceed -->
+          <div class="sh-actions">
+            <button class="btn-primary" onclick="goTo('s-complete', 3)">Proceed to Swap</button>
+            <div class="btn-secondary" onclick="goTo('s-dash', 0)">Close</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /SCREEN 3 -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 4 — COMPLETE SWAP
+         (full-page: status bar + header + content + fixed CTA)
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-complete">
+
+      <!-- Status bar -->
+      <div class="sb" style="background:white;">
+        <span class="sb-time">9:41</span>
+        <div class="sb-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none">
+            <rect x="0" y="5" width="3" height="6" rx="1" fill="#202020"/>
+            <rect x="4.5" y="3" width="3" height="8" rx="1" fill="#202020"/>
+            <rect x="9" y="1" width="3" height="10" rx="1" fill="#202020"/>
+            <rect x="13.5" y="0" width="3" height="11" rx="1" fill="#202020" opacity="0.35"/>
+          </svg>
+          <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
+            <rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#202020" stroke-opacity="0.35"/>
+            <rect x="2" y="2" width="17" height="8" rx="2" fill="#202020"/>
+            <path d="M23 4v4a2 2 0 0 0 0-4z" fill="#202020" opacity="0.4"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Page header — centered title -->
+      <div class="page-header" style="position:relative;">
+        <button class="back-btn" onclick="goTo('s-scanned', 2)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 5 5 12 12 19"/></svg>
+        </button>
+        <div class="page-title" style="position:absolute;left:50%;transform:translateX(-50%);">Complete swap</div>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="c-scroll">
+
+        <!-- RIDER + KEKE INFO CARD — same style as scanned screen -->
+        <div class="rider-card">
+          <!-- Rider header -->
+          <div class="rc-head">
+            <div class="rc-av">WS</div>
+            <div>
+              <div class="rc-name">Werinipre Suoyo</div>
+              <div class="rc-sub">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#838383" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h3M11 12h7"/></svg>
+                FST234HJ · Active rider
+              </div>
+            </div>
+          </div>
+          <!-- Keke battery detail rows -->
+          <div class="detail-rows">
+            <div class="detail-row">
+              <span class="dr-label">Old battery S/N</span>
+              <span class="dr-value">B7Y-239-2391</span>
+            </div>
+            <!-- New VCU only: auto-fetched mileage (hidden for old VCU) -->
+            <div class="detail-row" id="sc-mileage-row">
+              <span class="dr-label">Current mileage</span>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span class="dr-value">123 km</span>
+                <span class="vcu-inline-badge">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  VCU
+                </span>
+              </div>
+            </div>
+            <div class="detail-row">
+              <span class="dr-label">Phone number</span>
+              <span class="dr-value">08042049165</span>
+            </div>
+            <div class="detail-row">
+              <span class="dr-label">Last swap</span>
+              <span class="dr-value">11:34AM, Jun 12th 2025</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keke illustration — locked (red) -->
+        <div class="keke-centered">
+          <svg width="230" height="182" viewBox="0 0 230 182">
+            <rect x="20" y="20" width="190" height="11" rx="5.5" fill="#1e293b"/>
+            <rect x="30" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <rect x="191" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <rect x="42" y="26" width="146" height="42" rx="6" fill="#bfdbfe" opacity="0.85"/>
+            <rect x="42" y="26" width="146" height="14" rx="6" fill="#93c5fd" opacity="0.5"/>
+            <rect x="52" y="31" width="55" height="7" rx="3.5" fill="rgba(255,255,255,0.5)"/>
+            <rect x="20" y="64" width="190" height="86" rx="11" fill="#f5c518"/>
+            <rect x="20" y="64" width="190" height="28" rx="11" fill="rgba(255,255,255,0.18)"/>
+            <rect x="20" y="128" width="190" height="22" rx="0" fill="rgba(0,0,0,0.08)"/>
+            <rect x="20" y="138" width="190" height="12" rx="0 0 11 11" fill="rgba(0,0,0,0.06)"/>
+            <rect x="20" y="76" width="28" height="38" rx="6" fill="#e6b800"/>
+            <rect x="182" y="76" width="28" height="38" rx="6" fill="#e6b800"/>
+            <circle cx="34" cy="112" r="10" fill="#f97316"/>
+            <circle cx="34" cy="112" r="6"  fill="#fb923c"/>
+            <circle cx="34" cy="112" r="2.5" fill="#fff7ed" opacity="0.8"/>
+            <circle cx="196" cy="112" r="10" fill="#f97316"/>
+            <circle cx="196" cy="112" r="6"  fill="#fb923c"/>
+            <circle cx="196" cy="112" r="2.5" fill="#fff7ed" opacity="0.8"/>
+            <circle cx="115" cy="107" r="30" fill="#dc2626"/>
+            <circle cx="115" cy="107" r="30" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+            <circle cx="115" cy="107" r="24" fill="rgba(0,0,0,0.1)"/>
+            <path d="M107 104 L107 98 C107 93 123 93 123 98 L123 104" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="103" y="104" width="24" height="18" rx="4" fill="white"/>
+            <circle cx="115" cy="113" r="3" fill="#dc2626"/>
+            <rect x="113.5" y="114" width="3" height="5" rx="1.5" fill="#dc2626"/>
+            <rect x="12" y="148" width="206" height="9" rx="4.5" fill="#334155"/>
+            <circle cx="46"  cy="164" r="22" fill="#1e293b"/>
+            <circle cx="46"  cy="164" r="11" fill="#334155"/>
+            <circle cx="46"  cy="164" r="5"  fill="#1e293b"/>
+            <circle cx="46" cy="153" r="2" fill="#475569"/>
+            <circle cx="46" cy="175" r="2" fill="#475569"/>
+            <circle cx="35" cy="164" r="2" fill="#475569"/>
+            <circle cx="57" cy="164" r="2" fill="#475569"/>
+            <circle cx="184" cy="164" r="22" fill="#1e293b"/>
+            <circle cx="184" cy="164" r="11" fill="#334155"/>
+            <circle cx="184" cy="164" r="5"  fill="#1e293b"/>
+            <circle cx="184" cy="153" r="2" fill="#475569"/>
+            <circle cx="184" cy="175" r="2" fill="#475569"/>
+            <circle cx="173" cy="164" r="2" fill="#475569"/>
+            <circle cx="195" cy="164" r="2" fill="#475569"/>
+          </svg>
+          <div class="keke-locked-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Battery compartment locked
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAP 4 — Unlock Battery Compartment -->
+      <div class="cta-bar">
+        <button class="btn-primary" id="unlock-cta" onclick="unlockKeke()">
+          <span style="display:flex;align-items:center;justify-content:center;gap:9px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+            </svg>
+            Unlock Battery Compartment
+          </span>
+        </button>
+      </div>
+
+    </div>
+    <!-- /SCREEN 4 -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 4b — SCAN NEW BATTERY
+         (modal sheet — mirrors FAB scanner)
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-scan-new">
+
+      <!-- Ghost of complete screen showing behind overlay -->
+      <div class="dash-ghost">
+        <div style="height:44px; background:white;"></div>
+        <!-- ghost page header bar -->
+        <div style="height:56px; background:white; border-bottom:1px solid var(--grey4); opacity:0.8;"></div>
+        <!-- ghost rider chip row -->
+        <div style="padding:12px 16px; display:flex; justify-content:center;">
+          <div style="height:38px; width:168px; border-radius:99px; background:white; opacity:0.55;"></div>
+        </div>
+        <!-- ghost info card -->
+        <div style="margin:0 16px; height:90px; border-radius:18px; background:white; opacity:0.45;"></div>
+        <!-- ghost keke body -->
+        <div style="display:flex; justify-content:center; padding:18px 0 0;">
+          <svg width="200" height="130" viewBox="0 0 230 182" opacity="0.3">
+            <rect x="20" y="20" width="190" height="11" rx="5.5" fill="#1e293b"/>
+            <rect x="30" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <rect x="191" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <rect x="42" y="26" width="146" height="42" rx="6" fill="#bfdbfe"/>
+            <rect x="20" y="64" width="190" height="86" rx="11" fill="#f5c518"/>
+            <circle cx="115" cy="107" r="30" fill="#dc2626"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Dark overlay (same as FAB scanner) -->
+      <div class="modal-bg"></div>
+
+      <!-- Bottom sheet -->
+      <div class="sheet-wrap">
+        <div class="sheet">
+          <div class="sh-pill"></div>
+          <div class="sh-head">
+            <div class="sh-icon-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2" stroke-linecap="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                <rect x="8" y="8" width="8" height="8" rx="1"/>
+              </svg>
+            </div>
+            <span class="sh-title">Scan new battery</span>
+          </div>
+
+          <!-- Old battery removed confirmation -->
+          <div class="verified-pill">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#05853e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Old battery B7Y-239-2391 removed
+          </div>
+
+          <!-- QR viewport — TAP 5 -->
+          <div class="qr-viewport" onclick="scanNewBattery()">
+            <div class="qr-corners">
+              <div class="qr-corner tl"></div>
+              <div class="qr-corner tr"></div>
+              <div class="qr-corner bl"></div>
+              <div class="qr-corner br"></div>
+            </div>
+            <div class="scan-beam"></div>
+            <div class="qr-placeholder">
+              <svg width="80" height="80" viewBox="0 0 80 80" fill="none" opacity="0.08">
+                <rect x="5" y="5" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="13" y="13" width="12" height="12" rx="1" fill="white"/>
+                <rect x="47" y="5" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="55" y="13" width="12" height="12" rx="1" fill="white"/>
+                <rect x="5" y="47" width="28" height="28" rx="3" stroke="white" stroke-width="3" fill="none"/>
+                <rect x="13" y="55" width="12" height="12" rx="1" fill="white"/>
+                <line x1="47" y1="47" x2="47" y2="75" stroke="white" stroke-width="3"/>
+                <line x1="75" y1="47" x2="75" y2="75" stroke="white" stroke-width="3"/>
+                <line x1="47" y1="47" x2="75" y2="47" stroke="white" stroke-width="3"/>
+                <rect x="57" y="57" width="8" height="8" rx="1" fill="white"/>
+                <rect x="47" y="67" width="8" height="8" rx="1" fill="white"/>
+                <rect x="67" y="67" width="8" height="8" rx="1" fill="white"/>
+              </svg>
+            </div>
+            <div class="qr-label">
+              <div class="qr-label-main">Point camera at new battery QR code</div>
+              <div class="qr-label-sub">Tap to simulate scan</div>
+            </div>
+          </div>
+
+          <div class="sh-actions" style="padding-top:8px;">
+            <div class="btn-secondary" onclick="goTo('s-complete', 3)">Close</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /SCREEN 4b -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 4c — COMPLETE READY
+         (same layout as s-complete: info card + keke, now all populated & unlocked)
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-complete-ready">
+
+      <!-- Status bar -->
+      <div class="sb" style="background:white;">
+        <span class="sb-time">9:41</span>
+        <div class="sb-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none">
+            <rect x="0" y="5" width="3" height="6" rx="1" fill="#202020"/>
+            <rect x="4.5" y="3" width="3" height="8" rx="1" fill="#202020"/>
+            <rect x="9" y="1" width="3" height="10" rx="1" fill="#202020"/>
+            <rect x="13.5" y="0" width="3" height="11" rx="1" fill="#202020" opacity="0.35"/>
+          </svg>
+          <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
+            <rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#202020" stroke-opacity="0.35"/>
+            <rect x="2" y="2" width="17" height="8" rx="2" fill="#202020"/>
+            <path d="M23 4v4a2 2 0 0 0 0-4z" fill="#202020" opacity="0.4"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Page header (same as s-complete) -->
+      <div class="page-header" style="position:relative;">
+        <button class="back-btn" onclick="goTo('s-scan-new', 4)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 5 5 12 12 19"/></svg>
+        </button>
+        <div class="page-title" style="position:absolute;left:50%;transform:translateX(-50%);">Complete swap</div>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="c-scroll">
+
+        <!-- RIDER + KEKE INFO CARD — same style as s-complete -->
+        <div class="rider-card">
+          <div class="rc-head">
+            <div class="rc-av">WS</div>
+            <div>
+              <div class="rc-name">Werinipre Suoyo</div>
+              <div class="rc-sub">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#838383" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h3M11 12h7"/></svg>
+                FST234HJ · Active rider
+              </div>
+            </div>
+          </div>
+          <div class="detail-rows">
+            <!-- Old battery -->
+            <div class="detail-row">
+              <span class="dr-label">Old battery S/N</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="dr-value">B7Y-239-2391</span>
+                <div class="sr-check">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              </div>
+            </div>
+            <!-- New battery -->
+            <div class="detail-row">
+              <span class="dr-label">New battery S/N</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="dr-value">B123-823-8125</span>
+                <div class="sr-check">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              </div>
+            </div>
+            <!-- Mileage -->
+            <div class="detail-row">
+              <span class="dr-label">Current mileage</span>
+              <!-- New VCU: auto badge -->
+              <div id="ready-mileage-auto" style="display:flex;align-items:center;gap:6px;">
+                <span class="dr-value">123 km</span>
+                <span class="vcu-inline-badge">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  VCU
+                </span>
+              </div>
+              <!-- Old VCU: manual input after swap -->
+              <div id="ready-mileage-manual" class="mileage-input-wrap" style="display:none;">
+                <input class="mileage-field" id="ready-mileage-field" type="tel" inputmode="numeric" pattern="[0-9]*" min="0" placeholder="0" oninput="onReadyMileageInput(this)">
+                <span class="dr-value" style="color:var(--grey10);">km</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ★ KEKE ILLUSTRATION — same as s-complete but unlocked (green) ★ -->
+        <div class="keke-centered">
+          <svg width="230" height="182" viewBox="0 0 230 182">
+            <!-- Roof cross-bar -->
+            <rect x="20" y="20" width="190" height="11" rx="5.5" fill="#1e293b"/>
+            <!-- Roof pillars -->
+            <rect x="30" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <rect x="191" y="20" width="9" height="46" rx="4" fill="#334155"/>
+            <!-- Windshield -->
+            <rect x="42" y="26" width="146" height="42" rx="6" fill="#bfdbfe" opacity="0.85"/>
+            <rect x="42" y="26" width="146" height="14" rx="6" fill="#93c5fd" opacity="0.5"/>
+            <rect x="52" y="31" width="55" height="7" rx="3.5" fill="rgba(255,255,255,0.5)"/>
+            <!-- Body -->
+            <rect x="20" y="64" width="190" height="86" rx="11" fill="#f5c518"/>
+            <rect x="20" y="64" width="190" height="28" rx="11" fill="rgba(255,255,255,0.18)"/>
+            <rect x="20" y="128" width="190" height="22" fill="rgba(0,0,0,0.08)"/>
+            <rect x="20" y="138" width="190" height="12" fill="rgba(0,0,0,0.06)"/>
+            <!-- Side panels -->
+            <rect x="20" y="76" width="28" height="38" rx="6" fill="#e6b800"/>
+            <rect x="182" y="76" width="28" height="38" rx="6" fill="#e6b800"/>
+            <!-- Indicator lights -->
+            <circle cx="34" cy="112" r="10" fill="#f97316"/>
+            <circle cx="34" cy="112" r="6"  fill="#fb923c"/>
+            <circle cx="34" cy="112" r="2.5" fill="#fff7ed" opacity="0.8"/>
+            <circle cx="196" cy="112" r="10" fill="#f97316"/>
+            <circle cx="196" cy="112" r="6"  fill="#fb923c"/>
+            <circle cx="196" cy="112" r="2.5" fill="#fff7ed" opacity="0.8"/>
+            <!-- ★ LOCK CIRCLE — RED (locked, new battery installed) ★ -->
+            <circle cx="115" cy="107" r="30" fill="#dc2626"/>
+            <circle cx="115" cy="107" r="30" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+            <circle cx="115" cy="107" r="24" fill="rgba(0,0,0,0.1)"/>
+            <!-- Closed lock (new battery locked in) -->
+            <path d="M107 104 L107 98 C107 93 123 93 123 98 L123 104"
+                  fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="103" y="104" width="24" height="18" rx="4" fill="white"/>
+            <circle cx="115" cy="113" r="3" fill="#dc2626"/>
+            <rect x="113.5" y="114" width="3" height="5" rx="1.5" fill="#dc2626"/>
+            <!-- Axle + wheels -->
+            <rect x="12" y="148" width="206" height="9" rx="4.5" fill="#334155"/>
+            <circle cx="46"  cy="164" r="22" fill="#1e293b"/>
+            <circle cx="46"  cy="164" r="11" fill="#334155"/>
+            <circle cx="46"  cy="164" r="5"  fill="#1e293b"/>
+            <circle cx="46" cy="153" r="2" fill="#475569"/>
+            <circle cx="46" cy="175" r="2" fill="#475569"/>
+            <circle cx="35" cy="164" r="2" fill="#475569"/>
+            <circle cx="57" cy="164" r="2" fill="#475569"/>
+            <circle cx="184" cy="164" r="22" fill="#1e293b"/>
+            <circle cx="184" cy="164" r="11" fill="#334155"/>
+            <circle cx="184" cy="164" r="5"  fill="#1e293b"/>
+            <circle cx="184" cy="153" r="2" fill="#475569"/>
+            <circle cx="184" cy="175" r="2" fill="#475569"/>
+            <circle cx="173" cy="164" r="2" fill="#475569"/>
+            <circle cx="195" cy="164" r="2" fill="#475569"/>
+          </svg>
+
+          <!-- Status label — amber (locked) -->
+          <div class="keke-locked-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Battery compartment locked
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAP 6 — Complete Swap -->
+      <div class="cta-bar">
+        <button class="btn-primary" id="complete-swap-cta" onclick="goTo('s-success', 6)">Complete Swap</button>
+      </div>
+
+    </div>
+    <!-- /SCREEN 4c -->
+
+
+    <!-- ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+         SCREEN 5 — SWAP SUCCESSFUL
+    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ -->
+    <div class="screen" id="s-success">
+      <div class="success-dimmed" onclick="goTo('s-dash',0)"></div>
+      <div class="success-sheet-wrap">
+        <div class="success-sheet">
+          <div class="sh-pill"></div>
+          <div class="success-check">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#202020" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="success-title">Battery swap successful</div>
+          <div class="success-desc">
+            The battery swap has been successfully completed. You can view rider details or return to the dashboard to initiate additional swaps.
+          </div>
+          <div class="sh-actions" style="padding:0;">
+            <button class="btn-primary" onclick="goTo('s-dash',0)">View rider details</button>
+            <div class="btn-secondary" onclick="goTo('s-dash',0)">Go to dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /SCREEN 5 -->
+
+  </div>
+  <!-- /phone -->
+
+  <!-- Hint bar -->
+  <div class="hint-bar" id="hint-bar">
+    <span class="hint-green">Tap 1 of 6</span> — Tap the <span class="hint-green">green FAB</span> button to initiate a battery swap
+  </div>
+
+</div>
+<!-- /wrapper -->
+
+
+<script>
+/* ══════════════════════════════════════
+   FLOW STATE MACHINE
+══════════════════════════════════════ */
+
+const SCREENS = ['s-dash', 's-scanner', 's-scanned', 's-complete', 's-scan-new', 's-complete-ready', 's-success'];
+const PIPS    = [1,2,3,4,5,6].map(i => document.getElementById('pip' + i));
+const HINT    = document.getElementById('hint-bar');
+
+const HINTS = {
+  's-dash':           '<span class="hint-green">Tap 1 of 6</span> — Tap the <span class="hint-green">green FAB</span> button to initiate a battery swap',
+  's-scanner':        '<span class="hint-green">Tap 2 of 6</span> — Camera opens by default. Tap the <span class="hint-green">scanner area</span> to scan rider QR',
+  's-scanned':        '<span class="hint-green">Tap 3 of 6</span> — Rider identified + inline payment confirmed. Tap <span class="hint-green">Proceed to Swap</span>',
+  's-complete':       '<span class="hint-green">Tap 4 of 6</span> — Review keke battery info. Tap <span class="hint-green">Unlock Battery Compartment</span>',
+  's-scan-new':       '<span class="hint-green">Tap 5 of 6</span> — Compartment unlocked. Tap the <span class="hint-green">camera</span> to scan the new battery',
+  's-complete-ready': '<span class="hint-green">Tap 6 of 6</span> — New battery scanned & verified. Tap <span class="hint-green">Complete Swap</span>',
+  's-success':        '<span class="hint-green">✓ Done!</span> — 6 taps vs 12+ in current flow. <span class="hint-green">50% fewer interactions</span>'
+};
+
+/* Which pip index (0-based) is active on each screen */
+const TAP_IDX = {
+  's-dash':           0,
+  's-scanner':        1,
+  's-scanned':        2,
+  's-complete':       3,
+  's-scan-new':       4,
+  's-complete-ready': 5,
+  's-success':        5
+};
+
+/* ══════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════ */
+function goTo(screenId, tapNum) {
+  /* hide all screens */
+  SCREENS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+
+  /* show target */
+  const target = document.getElementById(screenId);
+  if (target) {
+    target.classList.add('active');
+    target.classList.add('screen-enter');
+    setTimeout(() => target.classList.remove('screen-enter'), 320);
+  }
+
+  /* progress pips */
+  const idx = TAP_IDX[screenId] !== undefined ? TAP_IDX[screenId] : 0;
+  PIPS.forEach((p, i) => {
+    p.classList.remove('active', 'done');
+    if (i < idx)   p.classList.add('done');
+    if (i === idx) p.classList.add('active');
+  });
+
+  /* hint */
+  HINT.innerHTML = HINTS[screenId] || '';
+}
+
+/* ══════════════════════════════════════
+   TOAST HELPER
+══════════════════════════════════════ */
+function showToast(msg, onDone) {
+  const toast    = document.getElementById('toast');
+  const toastMsg = document.getElementById('toast-msg');
+  toastMsg.textContent = msg;
+  toast.classList.add('show');
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      if (onDone) onDone();
+    }, 220); /* wait for fade-out before nav */
+  }, 1400); /* toast visible for 1.4s then auto-dismisses */
+}
+
+/* ══════════════════════════════════════
+   VCU MODE
+══════════════════════════════════════ */
+var VCU_MODE = 'new';
+
+function setVCUMode(mode) {
+  VCU_MODE = mode;
+
+  /* Update switcher buttons */
+  document.getElementById('btn-new-vcu').classList.toggle('active', mode === 'new');
+  document.getElementById('btn-old-vcu').classList.toggle('active', mode === 'old');
+
+  /* s-complete: hide mileage row entirely for old VCU (not known yet),
+     unlock CTA always enabled regardless of mode */
+  var scMileageRow = document.getElementById('sc-mileage-row');
+  if (scMileageRow) scMileageRow.style.display = mode === 'new' ? '' : 'none';
+  var unlockCta = document.getElementById('unlock-cta');
+  if (unlockCta) unlockCta.disabled = false;
+
+  /* s-complete-ready: toggle between auto badge (new) and input field (old) */
+  var readyAuto   = document.getElementById('ready-mileage-auto');
+  var readyManual = document.getElementById('ready-mileage-manual');
+  var readyField  = document.getElementById('ready-mileage-field');
+  var completeCta = document.getElementById('complete-swap-cta');
+
+  if (readyAuto)   readyAuto.style.display   = mode === 'new' ? 'flex' : 'none';
+  if (readyManual) readyManual.style.display  = mode === 'old' ? 'flex' : 'none';
+  if (readyField)  readyField.value = '';
+
+  /* Disable Complete Swap for old VCU until mileage is filled */
+  if (completeCta) completeCta.disabled = mode === 'old';
+}
+
+function onReadyMileageInput(input) {
+  var completeCta = document.getElementById('complete-swap-cta');
+  var val = input.value.trim();
+  var valid = val !== '' && Number(val) > 0;
+  input.classList.toggle('filled', valid);
+  if (completeCta) completeCta.disabled = !valid;
+}
+
+/* ══════════════════════════════════════
+   TAP 4 — UNLOCK KEKE BATTERY
+══════════════════════════════════════ */
+function unlockKeke() {
+  /* Show toast, then auto-route to scan new battery */
+  showToast('Battery compartment unlocked', function() {
+    goTo('s-scan-new', 5);
+  });
+}
+
+/* ══════════════════════════════════════
+   TAP 5 — SCAN NEW BATTERY
+══════════════════════════════════════ */
+function scanNewBattery() {
+  goTo('s-complete-ready', 6);
+}
+
+/* ══════════════════════════════════════
+   REFRESH BALANCE
+══════════════════════════════════════ */
+function refreshBalance(btn) {
+  const icon = btn.querySelector('svg');
+  icon.style.transition = 'transform 0.6s ease';
+  icon.style.transform = 'rotate(360deg)';
+  setTimeout(() => {
+    icon.style.transition = 'none';
+    icon.style.transform = 'rotate(0deg)';
+  }, 650);
+}
+</script>
+
+</body>
+</html>
