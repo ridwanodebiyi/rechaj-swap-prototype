@@ -2163,6 +2163,26 @@ function refreshBalance(btn) {
     icon.style.transform = 'rotate(0deg)';
   }, 650);
 }
+
+/* ══════════════════════════════════════
+   URL PARAM ROUTING — ?screen=s-dash&vcu=new
+   Lets each screen be opened directly via URL
+   for Figma import or external sharing
+══════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', function() {
+  var params   = new URLSearchParams(window.location.search);
+  var screenId = params.get('screen');
+  var vcuMode  = params.get('vcu') || 'new';
+  if (!screenId) return;
+  var stepMap = {
+    's-dash': 0, 's-scanner': 1, 's-scanned': 2,
+    's-complete': 3, 's-scan-new': 4,
+    's-complete-ready': 5, 's-success': 6
+  };
+  var step = stepMap[screenId] !== undefined ? stepMap[screenId] : 0;
+  setVCUMode(vcuMode);
+  goTo(screenId, step);
+});
 </script>
 
 </body>
